@@ -1,8 +1,7 @@
 use inventory;
-use serde::de::{Deserializer, Error, MapAccess, Visitor};
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::fmt;
+use serde::de::{Deserializer, Error};
+use serde::Deserialize;
+use crate::topology::config::component::ConfigSwapOut;
 use toml::Value;
 
 use crate::Event;
@@ -10,7 +9,7 @@ use crate::Event;
 pub mod static_value;
 
 pub struct ConditionConfig {
-    pub cond: Box<dyn Condition>,
+    pub condition: Box<dyn Condition>,
 }
 
 impl<'de> Deserialize<'de> for ConditionConfig {
@@ -18,13 +17,13 @@ impl<'de> Deserialize<'de> for ConditionConfig {
     where
         D: Deserializer<'de>,
     {
-        let swap_out = deserializer.deserialize_map(ConditionSwapOut::new())?;
+        let swap_out = deserializer.deserialize_map(ConfigSwapOut::new())?;
         match inventory::iter::<ConditionBuilder>
             .into_iter()
             .find(|t| t.name == swap_out.typestr)
         {
             Some(b) => match (b.constructor)(swap_out.nested) {
-                Ok(c) => Ok(ConditionConfig { cond: c }),
+                Ok(c) => Ok(Self { condition: c }),
                 Err(e) => Err(Error::custom(format!(
                     "failed to parse type `{}`: {}",
                     swap_out.typestr, e
@@ -38,70 +37,19 @@ impl<'de> Deserialize<'de> for ConditionConfig {
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
-#[serde(deny_unknown_fields)]
-pub struct ConditionSwapOut {
-    #[serde(rename = "type")]
-    pub typestr: String,
-    #[serde(flatten)]
-    pub nested: Value,
-}
-
-impl<'de> Visitor<'de> for ConditionSwapOut {
-    type Value = ConditionSwapOut;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a map")
-    }
-
-    fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-    where
-        M: MapAccess<'de>,
-    {
-        let mut typestr = "".to_owned();
-        let mut nested: BTreeMap<String, Value> = BTreeMap::new();
-
-        while let Some((key, value)) = access.next_entry::<String, toml::Value>()? {
-            if key == "type" {
-                typestr = value.as_str().unwrap_or("").to_owned();
-            } else {
-                nested.insert(key, value);
-            }
-        }
-
-        if typestr.len() == 0 {
-            Err(Error::custom("missing type field"))
-        } else {
-            Ok(ConditionSwapOut {
-                typestr: typestr,
-                nested: Value::Table(nested),
-            })
-        }
-    }
-}
-
-impl ConditionSwapOut {
-    pub fn new() -> ConditionSwapOut {
-        ConditionSwapOut {
-            typestr: "".to_owned(),
-            nested: Value::Table(BTreeMap::new()),
-        }
-    }
-}
-
 pub trait Condition {
     fn check(&self, e: &Event) -> Result<bool, String>;
 }
 
-type ConditionCtor = fn(Value) -> Result<Box<dyn Condition>, String>;
+type ComponentCtor<T> = fn(Value) -> Result<T, String>;
 
 pub struct ConditionBuilder {
     pub name: String,
-    pub constructor: ConditionCtor,
+    pub constructor: ComponentCtor<Box<dyn Condition>>,
 }
 
 impl ConditionBuilder {
-    pub fn new(name: String, ctor: ConditionCtor) -> ConditionBuilder {
+    pub fn new(name: String, ctor: ComponentCtor<Box<dyn Condition>>) -> ConditionBuilder {
         ConditionBuilder {
             name: name,
             constructor: ctor,
@@ -114,40 +62,6 @@ inventory::collect!(ConditionBuilder);
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Event;
-
-    #[test]
-    fn parse_static_config() {
-        let config_false: ConditionConfig = toml::from_str(
-            r#"
-      type = "static"
-      value = false
-      "#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            Ok(false),
-            config_false
-                .cond
-                .check(&Event::from("foo bar baz".to_owned()))
-        );
-
-        let config_true: ConditionConfig = toml::from_str(
-            r#"
-      type = "static"
-      value = true
-      "#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            Ok(true),
-            config_true
-                .cond
-                .check(&Event::from("foo bar baz".to_owned()))
-        );
-    }
 
     #[test]
     fn parse_bad_config_type() {

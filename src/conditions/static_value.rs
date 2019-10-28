@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use toml::Value;
 
 use crate::{
     conditions::{Condition, ConditionBuilder},
@@ -18,14 +17,7 @@ pub struct Static {
 
 impl Static {
     pub fn new(conf: &StaticConfig) -> Box<dyn Condition> {
-        Box::new(Static { value: conf.value })
-    }
-
-    pub fn new_from_value(value: Value) -> Result<Box<dyn Condition>, String> {
-        match value.try_into() {
-            Ok(c) => Ok(Static::new(&c)),
-            Err(e) => Err(format!("{}", e)),
-        }
+        Box::new(Self { value: conf.value })
     }
 }
 
@@ -36,5 +28,48 @@ impl Condition for Static {
 }
 
 inventory::submit! {
-    ConditionBuilder::new("static".to_owned(), Static::new_from_value)
+    ConditionBuilder::new("static".to_owned(), | value | {
+        match value.try_into() {
+            Ok(c) => Ok(Static::new(&c)),
+            Err(e) => Err(format!("{}", e)),
+        }
+    })
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{Event, conditions::ConditionConfig};
+
+    #[test]
+    fn parse_static_config() {
+        let config_false: ConditionConfig = toml::from_str(
+            r#"
+      type = "static"
+      value = false
+      "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            Ok(false),
+            config_false
+                .condition
+                .check(&Event::from("foo bar baz".to_owned()))
+        );
+
+        let config_true: ConditionConfig = toml::from_str(
+            r#"
+      type = "static"
+      value = true
+      "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            Ok(true),
+            config_true
+                .condition
+                .check(&Event::from("foo bar baz".to_owned()))
+        );
+    }
 }
