@@ -1,7 +1,10 @@
-use serde::{Deserialize,Serialize};
+use serde::{Deserialize, Serialize};
 use toml::Value;
 
-use crate::{Event, conditions::{ConditionImpl,Condition}};
+use crate::{
+    conditions::{Condition, ConditionBuilder},
+    Event,
+};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
@@ -15,23 +18,23 @@ pub struct Static {
 
 impl Static {
     pub fn new(conf: &StaticConfig) -> Box<dyn Condition> {
-        Box::new(Static {
-            value: conf.value,
-        })
+        Box::new(Static { value: conf.value })
     }
 
-    pub fn new_from_value(value: Value) -> Box<dyn Condition> {
-        let conf: StaticConfig = value.try_into().unwrap();
-        Static::new(&conf)
+    pub fn new_from_value(value: Value) -> Result<Box<dyn Condition>, String> {
+        match value.try_into() {
+            Ok(c) => Ok(Static::new(&c)),
+            Err(e) => Err(format!("{}", e)),
+        }
     }
 }
 
 impl Condition for Static {
-    fn check(&self, _: &Event) -> Result<bool, &'static str> {
+    fn check(&self, _: &Event) -> Result<bool, String> {
         return Ok(self.value);
     }
 }
 
 inventory::submit! {
-    ConditionImpl::new("static".to_owned(), Static::new_from_value)
+    ConditionBuilder::new("static".to_owned(), Static::new_from_value)
 }
