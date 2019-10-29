@@ -172,6 +172,7 @@ fn encode_event(event: Event, namespace: &str) -> Result<Vec<u8>, ()> {
                 buf.push(format!("#{}", encode_tags(t)));
             };
         }
+        _ => {}
     };
 
     let mut message: String = buf.join("|");

@@ -418,6 +418,7 @@ impl Sink for PrometheusSink {
                     }
                 });
             }
+            _ => {}
         }
 
         self.acker.ack(1);
