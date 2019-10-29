@@ -96,24 +96,24 @@ where
 }
 
 type ComponentFromValue<T> = fn(Value) -> Result<T, String>;
-type ComponentToValue<T> = fn(T) -> Result<Value, String>;
+type ComponentToValue = fn() -> Result<Value, String>;
 
 pub struct ComponentBuilder<T: Sized> {
     pub name: String,
     pub from_value: ComponentFromValue<T>,
-    pub to_value: ComponentToValue<T>,
+    pub default_value: ComponentToValue,
 }
 
 impl<T: Sized> ComponentBuilder<T> {
     pub fn new(
         name: String,
         from_value: ComponentFromValue<T>,
-        to_value: ComponentToValue<T>,
+        default_value: ComponentToValue,
     ) -> Self {
         ComponentBuilder {
             name: name,
             from_value: from_value,
-            to_value: to_value,
+            default_value: default_value,
         }
     }
 }

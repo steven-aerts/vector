@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use toml::Value;
 
 use crate::{conditions::Condition, topology::config::component::ComponentBuilder, Event};
 
@@ -9,31 +10,28 @@ pub struct StaticConfig {
 }
 
 pub struct Static {
-    value: bool,
+    conf: StaticConfig,
 }
 
 impl Static {
-    pub fn new(conf: &StaticConfig) -> Box<dyn Condition> {
-        Box::new(Self { value: conf.value })
+    pub fn new(conf: StaticConfig) -> Box<dyn Condition> {
+        Box::new(Self { conf: conf })
     }
 }
 
 impl Condition for Static {
     fn check(&self, _: &Event) -> Result<bool, String> {
-        return Ok(self.value);
+        return Ok(self.conf.value);
     }
 }
 
 inventory::submit! {
     ComponentBuilder::<Box::<dyn Condition>>::new(
         "static".to_owned(),
-        | value | {
-            match value.try_into() {
-                Ok(c) => Ok(Static::new(&c)),
-                Err(e) => Err(format!("{}", e)),
-            }
-        },
-        | _s | Err("not implemented".to_owned()),
+        | value | value.try_into().map(|c| Static::new(c)).map_err(|e| format!("{}", e)),
+        || Value::try_from(StaticConfig{
+            value: false,
+        }).map_err(|e| format!("{}", e))
     )
 }
 
