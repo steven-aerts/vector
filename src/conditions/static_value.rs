@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use toml::Value;
 
-use crate::{conditions::Condition, topology::config::component::ComponentBuilder, Event};
+use crate::{conditions::{Condition, ConditionDefinition}, Event};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
@@ -26,7 +26,7 @@ impl Condition for Static {
 }
 
 inventory::submit! {
-    ComponentBuilder::<Box::<dyn Condition>>::new(
+    ConditionDefinition::new(
         "static".to_owned(),
         | value | value.try_into().map(|c| Static::new(c)).map_err(|e| format!("{}", e)),
         || Value::try_from(StaticConfig{
@@ -37,12 +37,11 @@ inventory::submit! {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::{topology::config::component::ComponentConfig, Event};
+    use crate::{Event, conditions::ConditionConfig};
 
     #[test]
     fn parse_static_config() {
-        let config_false: ComponentConfig<Box<dyn Condition>> = toml::from_str(
+        let config_false: ConditionConfig = toml::from_str(
             r#"
       type = "static"
       value = false
@@ -57,7 +56,7 @@ mod test {
                 .check(&Event::from("foo bar baz".to_owned()))
         );
 
-        let config_true: ComponentConfig<Box<dyn Condition>> = toml::from_str(
+        let config_true: ConditionConfig = toml::from_str(
             r#"
       type = "static"
       value = true
@@ -70,6 +69,39 @@ mod test {
             config_true
                 .condition
                 .check(&Event::from("foo bar baz".to_owned()))
+        );
+    }
+
+    #[test]
+    fn print_static_config() {
+        let config_false: ConditionConfig = toml::from_str(
+            r#"
+      type = "static"
+      value = false
+      "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            r#"type = "static"
+value = false
+"#,
+            toml::to_string(&config_false).unwrap()
+        );
+
+        let config_true: ConditionConfig = toml::from_str(
+            r#"
+      type = "static"
+      value = true
+      "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            r#"type = "static"
+value = true
+"#,
+            toml::to_string(&config_true).unwrap()
         );
     }
 }
