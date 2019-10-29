@@ -1,9 +1,9 @@
+use inventory;
 use serde::de::{Deserializer, Error, MapAccess, Visitor};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
 use toml::Value;
-use inventory;
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
@@ -59,7 +59,8 @@ impl<'de> Visitor<'de> for ConfigSwapOut {
 pub struct ComponentConfig<T: 'static>
 where
     T: Sized,
-    inventory::iter<ComponentBuilder<T>>: std::iter::IntoIterator<Item=&'static ComponentBuilder<T>>,
+    inventory::iter<ComponentBuilder<T>>:
+        std::iter::IntoIterator<Item = &'static ComponentBuilder<T>>,
 {
     pub condition: T,
 }
@@ -67,7 +68,8 @@ where
 impl<'de, T: 'static> Deserialize<'de> for ComponentConfig<T>
 where
     T: Sized,
-    inventory::iter<ComponentBuilder<T>>: std::iter::IntoIterator<Item=&'static ComponentBuilder<T>>,
+    inventory::iter<ComponentBuilder<T>>:
+        std::iter::IntoIterator<Item = &'static ComponentBuilder<T>>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -105,8 +107,8 @@ pub struct ComponentBuilder<T: Sized> {
 impl<T: Sized> ComponentBuilder<T> {
     pub fn new(
         name: String,
-         from_value: ComponentFromValue<T>,
-         to_value: ComponentToValue<T>,
+        from_value: ComponentFromValue<T>,
+        to_value: ComponentToValue<T>,
     ) -> Self {
         ComponentBuilder {
             name: name,
