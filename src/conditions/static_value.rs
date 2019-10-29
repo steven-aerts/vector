@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    conditions::{Condition, ConditionBuilder},
+    conditions::Condition,
+    topology::config::component::ComponentBuilder,
     Event,
 };
 
@@ -28,21 +29,26 @@ impl Condition for Static {
 }
 
 inventory::submit! {
-    ConditionBuilder::new("static".to_owned(), | value | {
-        match value.try_into() {
-            Ok(c) => Ok(Static::new(&c)),
-            Err(e) => Err(format!("{}", e)),
-        }
-    })
+    ComponentBuilder::<Box::<dyn Condition>>::new(
+        "static".to_owned(),
+         | value | {
+            match value.try_into() {
+                Ok(c) => Ok(Static::new(&c)),
+                Err(e) => Err(format!("{}", e)),
+            }
+        },
+        | _s | Err("not implemented".to_owned()),
+    )
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{Event, conditions::ConditionConfig};
+    use super::*;
+    use crate::{Event, topology::config::component::ComponentConfig};
 
     #[test]
     fn parse_static_config() {
-        let config_false: ConditionConfig = toml::from_str(
+        let config_false: ComponentConfig<Box::<dyn Condition>> = toml::from_str(
             r#"
       type = "static"
       value = false
@@ -57,7 +63,7 @@ mod test {
                 .check(&Event::from("foo bar baz".to_owned()))
         );
 
-        let config_true: ConditionConfig = toml::from_str(
+        let config_true: ComponentConfig<Box::<dyn Condition>> = toml::from_str(
             r#"
       type = "static"
       value = true

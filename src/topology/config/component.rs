@@ -1,8 +1,9 @@
-use serde::de::{Error, MapAccess, Visitor};
-use serde::{Serialize};
-use toml::Value;
+use serde::de::{Deserializer, Error, MapAccess, Visitor};
+use serde::{Serialize, Deserialize};
 use std::collections::BTreeMap;
 use std::fmt;
+use toml::Value;
+use inventory;
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
@@ -51,6 +52,66 @@ impl<'de> Visitor<'de> for ConfigSwapOut {
                 typestr: typestr,
                 nested: Value::Table(nested),
             })
+        }
+    }
+}
+
+pub struct ComponentConfig<T: 'static>
+where
+    T: Sized,
+    inventory::iter<ComponentBuilder<T>>: std::iter::IntoIterator<Item=&'static ComponentBuilder<T>>,
+{
+    pub condition: T,
+}
+
+impl<'de, T: 'static> Deserialize<'de> for ComponentConfig<T>
+where
+    T: Sized,
+    inventory::iter<ComponentBuilder<T>>: std::iter::IntoIterator<Item=&'static ComponentBuilder<T>>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let swap_out = deserializer.deserialize_map(ConfigSwapOut::new())?;
+        match inventory::iter::<ComponentBuilder<T>>
+            .into_iter()
+            .find(|t| t.name == swap_out.typestr)
+        {
+            Some(b) => match (b.from_value)(swap_out.nested) {
+                Ok(c) => Ok(Self { condition: c }),
+                Err(e) => Err(Error::custom(format!(
+                    "failed to parse type `{}`: {}",
+                    swap_out.typestr, e
+                ))),
+            },
+            None => Err(Error::custom(format!(
+                "unrecognized type '{}'",
+                swap_out.typestr
+            ))),
+        }
+    }
+}
+
+type ComponentFromValue<T> = fn(Value) -> Result<T, String>;
+type ComponentToValue<T> = fn(T) -> Result<Value, String>;
+
+pub struct ComponentBuilder<T: Sized> {
+    pub name: String,
+    pub from_value: ComponentFromValue<T>,
+    pub to_value: ComponentToValue<T>,
+}
+
+impl<T: Sized> ComponentBuilder<T> {
+    pub fn new(
+        name: String,
+         from_value: ComponentFromValue<T>,
+         to_value: ComponentToValue<T>,
+    ) -> Self {
+        ComponentBuilder {
+            name: name,
+            from_value: from_value,
+            to_value: to_value,
         }
     }
 }
